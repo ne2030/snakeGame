@@ -1,6 +1,23 @@
-const { some, every, reject, find, map, each, go, range, curry, match } = require('fxjs2');
-const { setIdxs, setIdx, compareArr, getMatItem } = require('./fp');
-const reverseLinkedList = require('./reverseLinkedList');
+import { reduce, some, every, reject, find, map, each, go, range, curry, match } from 'fxjs2';
+import { setIdx, compareArr, getMatItem } from './fp';
+import reverseLinkedList from './reverseLinkedList';
+
+const logs = [];
+
+const calcLog = () => {
+    const bugs = reduce(
+        (acc, cur) => {
+            if (!acc.prev) return { bugs: [], prev: cur };
+            if ((Math.abs(acc.prev[0] - cur[0]) + Math.abs(acc.prev[1] - cur[1])) !== 1) {
+                acc.bugs.push(acc.prev);
+                acc.bugs.push(cur);
+            }
+            acc.prev = cur;
+            return acc;
+        }, { bugs: [], prev: null }, logs,
+    );
+    console.log(bugs, logs);
+};
 
 /*
 * Utils
@@ -34,9 +51,10 @@ const arrowCodes = [
 * States
 */
 
+
 const canvas = document.getElementById('board');
 const startBtn = document.getElementById('start');
-const ctx = canvas.getContext('2d');
+const globalContext = canvas.getContext('2d');
 
 const state = {
     score: 0,
@@ -55,11 +73,19 @@ const state = {
 * Functions
 */
 
+const updateBtn = (el, disable) => {
+    el.disabled = disable;
+    return disable ? el.classList.add('disabled') : el.classList.remove('disabled');
+};
+
 const end = () => {
     state.timeCanceler();
     startBtn.classList.remove('hidden');
 
     state.status = 'off';
+
+    updateBtn(startBtn, false);
+    calcLog();
 };
 
 const initGame = (width, height, unit) => {
@@ -70,7 +96,7 @@ const initGame = (width, height, unit) => {
     state.field = field;
     state.snake = reverseLinkedList(compareArr);
 
-    ctx.clearRect(0, 0, width * unit, height * unit);
+    globalContext.clearRect(0, 0, width * unit, height * unit);
 
     state.status = 'on';
 };
@@ -104,6 +130,7 @@ const drawInterval = (interval, f) => {
     let stop = false;
 
     const loop = (timestamp) => {
+        if (stop) return;
         if (!start) {
             start = timestamp;
             f();
@@ -112,7 +139,6 @@ const drawInterval = (interval, f) => {
             start = timestamp;
             f();
         }
-        if (stop) return;
         requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
@@ -129,63 +155,63 @@ const moveDot = (xi, yi, dir) => match(dir)
     .case(isEqual('up'))(() => [xi, yi - 1])
     .else(() => [xi, yi]);
 
-const drawDot = (xi, yi) => {
+const drawDot = ([xi, yi], color) => {
+    const ctx = canvas.getContext('2d');
+    const reducedUnit = initData.unit - 2; // stroke 가 겹치지 않기 위해 1픽셀 줄임
     state.field = setIdx(yi, (row => setIdx(xi, 1, row)), state.field);
-    ctx.fillRect(xi * 25, yi * 25, 25, 25);
+    ctx.strokeRect(xi * 25 + 1, yi * 25 + 1, reducedUnit, reducedUnit);
+    ctx.fillStyle = color;
+    ctx.fillRect(xi * 25 + 1, yi * 25 + 1, reducedUnit, reducedUnit);
 };
 
-const drawRow = (xi, yi, n) => {
-    state.field = setIdx(yi, (row => setIdxs(xi, xi + n - 1, 1, row)), state.field);
-    ctx.fillRect(xi * 25, yi * 25, n * 25, 25);
-};
-
-const deleteDot = (xi, yi) => {
-    ctx.clearRect(xi * 25, yi * 25, 25, 25);
+const deleteDot = ([xi, yi]) => {
+    globalContext.clearRect(xi * 25, yi * 25, 25, 25);
     state.field = setIdx(yi, (row => setIdx(xi, 0, row)), state.field);
 };
 
 const drawFood = () => {
-    const [xi, yi] = getRandomDot();
-    state.foods.push([xi, yi]);
+    const ctx = canvas.getContext('2d');
+    const dot = getRandomDot();
+    state.foods.push(dot);
+
     ctx.fillStyle = 'red';
-    drawDot(xi, yi);
+    drawDot(dot);
     ctx.fillStyle = 'black';
 };
 
-const eatFood = (xi, yi) => {
-    drawDot(xi, yi);
-    state.foods = reject(compareArr([xi, yi]), state.food);
+const eatFood = (dot) => {
+    drawDot(dot);
+    state.foods = reject(compareArr(dot), state.food);
     state.score += 1;
 
     drawFood();
 };
 
-const isFood = (xi, yi) => some(compareArr([xi, yi]), state.foods);
+const isFood = dot => some(compareArr(dot), state.foods);
 
 const moveSnake = () => {
     const { head, tail } = state.snake;
-    const [xi, yi] = moveDot(...head.value, state.direction);
+    const dot = moveDot(...head.value, state.direction);
 
-    const nextDotType = match(getMatItem([xi, yi], state.field))
+    const nextDotType = match(getMatItem(dot, state.field))
         .case(undefined)(() => 'block')
         .case(0)(() => 'empty')
-        .case(() => isFood(xi, yi))(() => 'food')
+        .case(() => isFood(dot))(() => 'food')
         .else(() => 'block');
 
     if (nextDotType === 'block') return end();
-
-    if (nextDotType === 'food') {
-        eatFood(xi, yi);
-    }
+    if (nextDotType === 'food') eatFood(dot);
 
     if (nextDotType === 'empty') {
-        drawDot(xi, yi);
-
         state.snake.deleteTail();
-        deleteDot(...tail.value);
+        deleteDot(tail.value);
+
+        drawDot(dot);
     }
 
-    state.snake.append([xi, yi]);
+    state.snake.append(dot);
+
+    logs.push(dot);
 };
 
 const changeDirection = (dir) => {
@@ -200,27 +226,27 @@ const start = ({ width, height, basicSize, unit }) => {
     const centerY = Math.floor(height / 2);
     const startX = Math.floor(width / 5);
 
-    drawRow(startX, centerY, basicSize);
-
-    go(
+    const snakeDots = go(
         range(basicSize),
         map(offsetX => [startX + offsetX, centerY]),
-        each(state.snake.append),
     );
+
+    each(drawDot, snakeDots);
+    each(state.snake.append, snakeDots);
 
     drawFood();
 
     state.timeCanceler = drawInterval(state.speed, moveSnake);
     canvas.focus();
 
-    startBtn.classList.add('hidden');
+    updateBtn(startBtn, true);
 };
 
 
 (function init({ width, height, unit }) {
-    ctx.canvas.width = width * unit;
-    ctx.canvas.height = height * unit;
-    ctx.canvas.classList.add('canvas');
+    globalContext.canvas.width = width * unit;
+    globalContext.canvas.height = height * unit;
+    globalContext.canvas.classList.add('canvas');
 
     canvas.addEventListener('keydown', (e) => {
         if (state.status === 'off') return;
@@ -241,3 +267,5 @@ const start = ({ width, height, basicSize, unit }) => {
 
     startBtn.onclick = () => start(initData);
 }(initData));
+
+window.drawDot = drawDot;

@@ -1,0 +1,18 @@
+@import "@material/button/mdc-button";
+
+.container {
+  text-align: center;
+}
+
+.canvas {
+  outline: none;
+  border: 1px solid black;
+}
+
+
+
+.foo-button {
+    @include mdc-button-ink-color(teal);
+    @include mdc-states(teal);
+  }
+

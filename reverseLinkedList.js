@@ -86,4 +86,4 @@ const createLinkedList = (comparator) => {
     return list;
 };
 
-module.exports = createLinkedList;
+export default createLinkedList;
