@@ -1,20 +1,41 @@
-const { find, reduce, curry, match } = require('fxjs2');
-const { setIdxs, setIdx, compareArr } = require('./fp');
+const { some, every, reject, find, map, each, go, range, curry, match } = require('fxjs2');
+const { setIdxs, setIdx, compareArr, getMatItem } = require('./fp');
 const reverseLinkedList = require('./reverseLinkedList');
+
+/*
+* Utils
+*/
 
 const add = curry((a, b) => a + b);
 const isEqual = curry((a, b) => a == b);
+const and = (...fs) => arg => every(f => f(arg), fs);
 
 // 1칸 25px
 
+/*
+* Constants
+*/
+
 const initData = {
-    width: 500,
-    height: 500,
+    width: 20,
+    height: 20,
     unit: 25,
     basicSize: 2,
 };
 
+const arrowCodes = [
+    { dir: 'left', code: 37, type: 'hori' },
+    { dir: 'up', code: 38, type: 'vert' },
+    { dir: 'right', code: 39, type: 'hori' },
+    { dir: 'down', code: 40, type: 'vert' },
+];
+
+/*
+* States
+*/
+
 const canvas = document.getElementById('board');
+const startBtn = document.getElementById('start');
 const ctx = canvas.getContext('2d');
 
 const state = {
@@ -22,13 +43,32 @@ const state = {
     field: [],
     totalSize: 0,
     head: [0, 0],
-    direction: 'down',
-    snake: reverseLinkedList(compareArr),
+    direction: 'right',
+    snake: null,
+    timeCanceler: null,
+    speed: 100,
+    foods: [],
 };
 
-// ctx.fillRect(25, 25, 100, 100);
-// ctx.clearRect(45, 45, 60, 60);
-// ctx.strokeRect(50, 50, 50, 50);
+/*
+* Functions
+*/
+
+const end = () => {
+    state.timeCanceler();
+    startBtn.classList.remove('hidden');
+};
+
+const initGame = (width, height, unit) => {
+    const createRow = () => Array(width).fill(0);
+    const field = Array(height).fill(0).map(createRow);
+
+    state.direction = 'right';
+    state.field = field;
+    state.snake = reverseLinkedList(compareArr);
+
+    ctx.clearRect(0, 0, width * unit, height * unit);
+};
 
 const getRandomDot = () => {
     const marginArea = state.totalSize - state.score - initData.basicSize;
@@ -54,16 +94,35 @@ const getRandomDot = () => {
     return [x, y];
 };
 
-const moveDotDirection = (xi, yi, dir) => match(dir)
+const drawInterval = (interval, f) => {
+    let start;
+    let stop = false;
+
+    const loop = (timestamp) => {
+        if (!start) {
+            start = timestamp;
+            f();
+        }
+        if (timestamp - start >= interval) {
+            start = timestamp;
+            f();
+        }
+        if (stop) return;
+        requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+
+    return () => {
+        stop = true;
+    };
+};
+
+const moveDot = (xi, yi, dir) => match(dir)
     .case(isEqual('left'))(() => [xi - 1, yi])
     .case(isEqual('right'))(() => [xi + 1, yi])
     .case(isEqual('down'))(() => [xi, yi + 1])
     .case(isEqual('up'))(() => [xi, yi - 1])
     .else(() => [xi, yi]);
-
-const changeDirection = (dir) => {
-
-};
 
 const drawDot = (xi, yi) => {
     state.field = setIdx(yi, (row => setIdx(xi, 1, row)), state.field);
@@ -75,63 +134,103 @@ const drawRow = (xi, yi, n) => {
     ctx.fillRect(xi * 25, yi * 25, n * 25, 25);
 };
 
-// const drawBlock = (xi, yi, xi2 = xi + 1, yi2 = yi + 1) => {
-//     const fillRow = row => setIdxs(xi, xi2 - 1, 1, row);
-//     setIdxs();
-
-//     ctx.fillRect(xi * 25, yi * 25, (xi2 - xi) * 25, (yi2 - yi) * 25);
-// };
-
 const deleteDot = (xi, yi) => {
     ctx.clearRect(xi * 25, yi * 25, 25, 25);
     state.field = setIdx(yi, (row => setIdx(xi, 0, row)), state.field);
 };
 
-const drawFoodBox = () => drawDot(...getRandomDot());
-const moveSnake = () => {
-    const { head, tail } = state.snake;
-    const [xi, yi] = moveDotDirection(...head.value, state.direction);
-
+const drawFood = () => {
+    const [xi, yi] = getRandomDot();
+    state.foods.push([xi, yi]);
+    ctx.fillStyle = 'red';
     drawDot(xi, yi);
-    state.snake.append([xi, yi]);
-
-
-    // console.log(state.snake.head);
-    // console.log(state.snake.tail);
-
-
-    state.snake.deleteTail();
-    deleteDot(...tail.value);
-
-
-    setTimeout(moveSnake, 1000);
+    ctx.fillStyle = 'black';
 };
 
+const eatFood = (xi, yi) => {
+    drawDot(xi, yi);
+    state.foods = reject(compareArr([xi, yi]), state.food);
+    state.score += 1;
+
+    drawFood();
+};
+
+const isFood = (xi, yi) => some(compareArr([xi, yi]), state.foods);
+
+const moveSnake = () => {
+    const { head, tail } = state.snake;
+    const [xi, yi] = moveDot(...head.value, state.direction);
+
+    const nextDotType = match(getMatItem([xi, yi], state.field))
+        .case(undefined)(() => 'block')
+        .case(0)(() => 'empty')
+        .case(() => isFood(xi, yi))(() => 'food')
+        .else(() => 'block');
+
+    if (nextDotType === 'block') return end();
+
+    if (nextDotType === 'food') {
+        eatFood(xi, yi);
+    }
+
+    if (nextDotType === 'empty') {
+        drawDot(xi, yi);
+
+        state.snake.deleteTail();
+        deleteDot(...tail.value);
+    }
+
+    state.snake.append([xi, yi]);
+};
+
+const changeDirection = (dir) => {
+    state.direction = dir;
+    state.timeCanceler();
+    state.timeCanceler = drawInterval(state.speed, moveSnake);
+};
+
+const start = ({ width, height, basicSize, unit }) => {
+    initGame(width, height, unit);
+
+    const centerY = Math.floor(height / 2);
+    const startX = Math.floor(width / 5);
+
+    drawRow(startX, centerY, basicSize);
+
+    go(
+        range(basicSize),
+        map(offsetX => [startX + offsetX, centerY]),
+        each(state.snake.append),
+    );
+
+    drawFood();
+
+    state.timeCanceler = drawInterval(state.speed, moveSnake);
+    canvas.focus();
+
+    startBtn.classList.add('hidden');
+};
+
+
 (function init({ width, height, unit }) {
-    ctx.canvas.width = width;
-    ctx.canvas.height = height;
+    ctx.canvas.width = width * unit;
+    ctx.canvas.height = height * unit;
     ctx.canvas.classList.add('canvas');
 
-    const createRow = () => Array(width / unit).fill(0);
-    const field = Array(height / unit).fill(0).map(createRow);
+    canvas.addEventListener('keydown', (e) => {
+        const newArrow = find(arrow => arrow.code === e.keyCode, arrowCodes);
+        const prevArrow = find(arrow => arrow.dir === state.direction, arrowCodes);
+
+        if (!newArrow) return;
+        if (prevArrow.type !== newArrow.type) changeDirection(newArrow.dir);
+    });
+
+    const createRow = () => Array(width).fill(0);
+    const field = Array(height).fill(0).map(createRow);
 
     state.field = field;
-    state.totalSize = (width * height) / (unit * unit);
+    state.totalSize = (width * height);
 
-    const centerY = Math.floor(height / unit / 2);
-    const quarterX = Math.floor(width / unit / 4);
 
-    drawRow(quarterX - 1, centerY, 2);
-    state.snake.append([quarterX - 1, centerY]);
-    state.snake.append([quarterX, centerY]);
+    startBtn.onclick = () => start(initData);
 }(initData));
-
-
-drawFoodBox();
-
-setTimeout(moveSnake, 1000);
-// moveSnake();
-// moveSnake();
-
-
-console.log(state.field);

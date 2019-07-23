@@ -1,11 +1,11 @@
-const { go, identity, map, L: { indexValues } } = require('fxjs2');
+const { curry, go, identity, map, L: { indexValues } } = require('fxjs2');
 
 const fp = {};
 
 fp.setIdxs = (idx1, idx2, v, xs) => go(
     xs,
     indexValues,
-    map(([item, idx]) => (idx - 1 < idx1 || idx - 1 > idx2 ? item : v)),
+    map(([idx, item]) => (idx < idx1 || idx > idx2 ? item : v)),
 );
 
 fp.setIdx = (idx, f, xs) => {
@@ -14,6 +14,8 @@ fp.setIdx = (idx, f, xs) => {
     return nxs;
 };
 
-fp.compareArr = (a1, a2) => a1.map((el, i) => el === a2[i]).every(identity);
+fp.compareArr = curry((a1, a2) => a1.map((el, i) => el === a2[i]).every(identity));
+
+fp.getMatItem = ([xi, yi], matrix) => (matrix[yi] ? matrix[yi][xi] : undefined);
 
 module.exports = fp;
