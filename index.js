@@ -48,6 +48,7 @@ const state = {
     timeCanceler: null,
     speed: 100,
     foods: [],
+    status: 'off',
 };
 
 /*
@@ -57,6 +58,8 @@ const state = {
 const end = () => {
     state.timeCanceler();
     startBtn.classList.remove('hidden');
+
+    state.status = 'off';
 };
 
 const initGame = (width, height, unit) => {
@@ -68,6 +71,8 @@ const initGame = (width, height, unit) => {
     state.snake = reverseLinkedList(compareArr);
 
     ctx.clearRect(0, 0, width * unit, height * unit);
+
+    state.status = 'on';
 };
 
 const getRandomDot = () => {
@@ -218,6 +223,8 @@ const start = ({ width, height, basicSize, unit }) => {
     ctx.canvas.classList.add('canvas');
 
     canvas.addEventListener('keydown', (e) => {
+        if (state.status === 'off') return;
+
         const newArrow = find(arrow => arrow.code === e.keyCode, arrowCodes);
         const prevArrow = find(arrow => arrow.dir === state.direction, arrowCodes);
 

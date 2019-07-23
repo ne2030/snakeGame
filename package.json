@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "watch": "webpack -w",
-    "build": "webpack"
+    "build": "webpack",
+    "deploy": "npm run build && aws s3 sync --cache-control 'no-cache' dist/ s3://ryan.study.snakegame/ "
   },
   "devDependencies": {
     "babel-loader": "^8.0.6",
