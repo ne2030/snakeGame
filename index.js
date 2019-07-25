@@ -2,23 +2,6 @@ import { reduce, some, every, reject, find, map, each, go, range, curry, match }
 import { setIdx, compareArr, getMatItem } from './fp';
 import reverseLinkedList from './reverseLinkedList';
 
-const logs = [];
-
-const calcLog = () => {
-    const bugs = reduce(
-        (acc, cur) => {
-            if (!acc.prev) return { bugs: [], prev: cur };
-            if ((Math.abs(acc.prev[0] - cur[0]) + Math.abs(acc.prev[1] - cur[1])) !== 1) {
-                acc.bugs.push(acc.prev);
-                acc.bugs.push(cur);
-            }
-            acc.prev = cur;
-            return acc;
-        }, { bugs: [], prev: null }, logs,
-    );
-    console.log(bugs, logs);
-};
-
 /*
 * Utils
 */
@@ -64,7 +47,7 @@ const state = {
     direction: 'right',
     snake: null,
     timeCanceler: null,
-    speed: 100,
+    speed: 200,
     foods: [],
     status: 'off',
 };
@@ -85,7 +68,6 @@ const end = () => {
     state.status = 'off';
 
     updateBtn(startBtn, false);
-    calcLog();
 };
 
 const initGame = (width, height, unit) => {
@@ -131,11 +113,7 @@ const drawInterval = (interval, f) => {
 
     const loop = (timestamp) => {
         if (stop) return;
-        if (!start) {
-            start = timestamp;
-            f();
-        }
-        if (timestamp - start >= interval) {
+        if (!start || (timestamp - start >= interval)) {
             start = timestamp;
             f();
         }
@@ -143,9 +121,7 @@ const drawInterval = (interval, f) => {
     };
     requestAnimationFrame(loop);
 
-    return () => {
-        stop = true;
-    };
+    return () => { stop = true; };
 };
 
 const moveDot = (xi, yi, dir) => match(dir)
@@ -206,12 +182,10 @@ const moveSnake = () => {
         state.snake.deleteTail();
         deleteDot(tail.value);
 
-        drawDot(dot);
+        drawDot(dot, 'yellow');
     }
 
     state.snake.append(dot);
-
-    logs.push(dot);
 };
 
 const changeDirection = (dir) => {
@@ -231,7 +205,7 @@ const start = ({ width, height, basicSize, unit }) => {
         map(offsetX => [startX + offsetX, centerY]),
     );
 
-    each(drawDot, snakeDots);
+    each(dot => drawDot(dot, 'yellow'), snakeDots);
     each(state.snake.append, snakeDots);
 
     drawFood();
