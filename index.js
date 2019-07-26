@@ -8,8 +8,6 @@ import reverseLinkedList from './reverseLinkedList';
 
 const isEqual = curry((a, b) => a == b);
 
-// 1칸 25px
-
 /*
 * Constants
 */
@@ -31,7 +29,6 @@ const arrowCodes = [
 /*
 * States
 */
-
 
 const canvas = document.getElementById('board');
 const startBtn = document.getElementById('start');
@@ -157,13 +154,10 @@ const deleteDot = ([xi, yi]) => {
 };
 
 const drawFood = () => {
-    const ctx = canvas.getContext('2d');
     const dot = getRandomDot();
     state.foods.push(dot);
 
-    ctx.fillStyle = 'red';
-    drawDot(dot);
-    ctx.fillStyle = 'black';
+    drawDot(dot, 'red');
 };
 
 const eatFood = (dot) => {
