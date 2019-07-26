@@ -1,4 +1,4 @@
-import { reduce, some, every, reject, find, map, each, go, range, curry, match } from 'fxjs2';
+import { some, every, reject, find, map, each, go, range, curry, match } from 'fxjs2';
 import { setIdx, compareArr, getMatItem } from './fp';
 import reverseLinkedList from './reverseLinkedList';
 
@@ -6,9 +6,7 @@ import reverseLinkedList from './reverseLinkedList';
 * Utils
 */
 
-const add = curry((a, b) => a + b);
 const isEqual = curry((a, b) => a == b);
-const and = (...fs) => arg => every(f => f(arg), fs);
 
 // 1칸 25px
 
@@ -53,6 +51,20 @@ const state = {
 };
 
 /*
+* state managing function
+*/
+
+const initField = (width, height) => {
+    const createRow = () => Array(width).fill(0);
+    const field = Array(height).fill(0).map(createRow);
+    state.field = field;
+};
+
+const fillField = ([x, y], content) => {
+    state.field = setIdx(y, (row => setIdx(x, content, row)), state.field);
+};
+
+/*
 * Functions
 */
 
@@ -71,11 +83,9 @@ const end = () => {
 };
 
 const initGame = (width, height, unit) => {
-    const createRow = () => Array(width).fill(0);
-    const field = Array(height).fill(0).map(createRow);
+    initField();
 
     state.direction = 'right';
-    state.field = field;
     state.snake = reverseLinkedList(compareArr);
 
     globalContext.clearRect(0, 0, width * unit, height * unit);
@@ -124,7 +134,7 @@ const drawInterval = (interval, f) => {
     return () => { stop = true; };
 };
 
-const moveDot = (xi, yi, dir) => match(dir)
+const getMovedCoordinates = ([xi, yi], dir) => match(dir)
     .case(isEqual('left'))(() => [xi - 1, yi])
     .case(isEqual('right'))(() => [xi + 1, yi])
     .case(isEqual('down'))(() => [xi, yi + 1])
@@ -133,16 +143,17 @@ const moveDot = (xi, yi, dir) => match(dir)
 
 const drawDot = ([xi, yi], color) => {
     const ctx = canvas.getContext('2d');
-    const reducedUnit = initData.unit - 2; // stroke 가 겹치지 않기 위해 1픽셀 줄임
-    state.field = setIdx(yi, (row => setIdx(xi, 1, row)), state.field);
-    ctx.strokeRect(xi * 25 + 1, yi * 25 + 1, reducedUnit, reducedUnit);
+    const reducedUnit = initData.unit - 2; // stroke 가 겹치지 않기 위해 2픽셀 줄임
+    fillField([xi, yi], 1);
+
+    ctx.strokeRect(xi * initData.unit + 1, yi * initData.unit + 1, reducedUnit, reducedUnit);
     ctx.fillStyle = color;
-    ctx.fillRect(xi * 25 + 1, yi * 25 + 1, reducedUnit, reducedUnit);
+    ctx.fillRect(xi * initData.unit + 1, yi * initData.unit + 1, reducedUnit, reducedUnit);
 };
 
 const deleteDot = ([xi, yi]) => {
-    globalContext.clearRect(xi * 25, yi * 25, 25, 25);
-    state.field = setIdx(yi, (row => setIdx(xi, 0, row)), state.field);
+    globalContext.clearRect(xi * initData.unit, yi * initData.unit, initData.unit, initData.unit);
+    fillField([xi, yi], 0);
 };
 
 const drawFood = () => {
@@ -167,7 +178,7 @@ const isFood = dot => some(compareArr(dot), state.foods);
 
 const moveSnake = () => {
     const { head, tail } = state.snake;
-    const dot = moveDot(...head.value, state.direction);
+    const dot = getMovedCoordinates(head.value, state.direction);
 
     const nextDotType = match(getMatItem(dot, state.field))
         .case(undefined)(() => 'block')
@@ -232,14 +243,8 @@ const start = ({ width, height, basicSize, unit }) => {
         if (prevArrow.type !== newArrow.type) changeDirection(newArrow.dir);
     });
 
-    const createRow = () => Array(width).fill(0);
-    const field = Array(height).fill(0).map(createRow);
-
-    state.field = field;
+    initField();
     state.totalSize = (width * height);
-
 
     startBtn.onclick = () => start(initData);
 }(initData));
-
-window.drawDot = drawDot;
